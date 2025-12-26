@@ -1,0 +1,139 @@
+package com.example.typingapp
+
+import android.content.Context
+import android.graphics.*
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import kotlin.random.Random
+
+class MainActivity : AppCompatActivity() {
+
+    enum class Screen { LOADING, MENU, GAME, SCORE }
+    private var currentScreen = Screen.LOADING
+    private lateinit var gameView: GameView
+    private var score = 0
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        gameView = GameView(this)
+        setContentView(gameView)
+
+        // 1秒後にメニュー画面へ
+        Handler(Looper.getMainLooper()).postDelayed({
+            currentScreen = Screen.MENU
+            gameView.invalidate()
+        }, 1000)
+    }
+
+    inner class GameView(context: Context) : View(context) {
+
+        private val paint = Paint()
+        private val playerRect = RectF()
+        private val fallingRect = RectF()
+        private var playerX = 0f
+        private var playerY = 0f
+        private var fallingX = 0f
+        private var fallingY = 0f
+        private val rectSize = 100f
+        private var speed = 15f
+
+        init {
+            playerX = 400f
+            playerY = 1600f
+            resetFalling()
+            // タイマー的に更新
+            Handler(Looper.getMainLooper()).post(object : Runnable {
+                override fun run() {
+                    if (currentScreen == Screen.GAME) {
+                        updateGame()
+                        invalidate()
+                    }
+                    Handler(Looper.getMainLooper()).postDelayed(this, 30)
+                }
+            })
+        }
+
+        private fun resetFalling() {
+            fallingX = Random.nextInt(0, width - rectSize.toInt()).toFloat()
+            fallingY = -rectSize
+        }
+
+        private fun updateGame() {
+            fallingY += speed
+            // 当たり判定
+            if (RectF(fallingX, fallingY, fallingX + rectSize, fallingY + rectSize)
+                    .intersect(RectF(playerX, playerY, playerX + rectSize, playerY + rectSize))
+            ) {
+                score++
+                resetFalling()
+            } else if (fallingY > height) {
+                // ゲームオーバー
+                currentScreen = Screen.SCORE
+            }
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            canvas.drawColor(Color.BLACK)
+
+            when (currentScreen) {
+                Screen.LOADING -> {
+                    paint.color = Color.WHITE
+                    paint.textSize = 100f
+                    canvas.drawText("LOADING...", 200f, 1000f, paint)
+                }
+                Screen.MENU -> {
+                    paint.color = Color.GREEN
+                    paint.textSize = 120f
+                    canvas.drawText("TAP TO START", 200f, 1000f, paint)
+                }
+                Screen.GAME -> {
+                    paint.color = Color.RED
+                    canvas.drawRect(fallingX, fallingY, fallingX + rectSize, fallingY + rectSize, paint)
+
+                    paint.color = Color.BLUE
+                    canvas.drawRect(playerX, playerY, playerX + rectSize, playerY + rectSize, paint)
+
+                    paint.color = Color.WHITE
+                    paint.textSize = 80f
+                    canvas.drawText("Score: $score", 50f, 100f, paint)
+                }
+                Screen.SCORE -> {
+                    paint.color = Color.YELLOW
+                    paint.textSize = 100f
+                    canvas.drawText("GAME OVER", 200f, 800f, paint)
+                    canvas.drawText("Score: $score", 200f, 1000f, paint)
+                    paint.textSize = 60f
+                    canvas.drawText("Tap to return to menu", 150f, 1200f, paint)
+                }
+            }
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if(event.action == MotionEvent.ACTION_DOWN) {
+                when(currentScreen) {
+                    Screen.MENU -> {
+                        currentScreen = Screen.GAME
+                        score = 0
+                        resetFalling()
+                    }
+                    Screen.GAME -> {
+                        // 左右操作
+                        playerX = if (event.x < width/2) (playerX - 100f).coerceAtLeast(0f)
+                        else (playerX + 100f).coerceAtMost(width - rectSize)
+                    }
+                    Screen.SCORE -> {
+                        currentScreen = Screen.MENU
+                    }
+                    else -> {}
+                }
+                invalidate()
+            }
+            return true
+        }
+    }
+}
