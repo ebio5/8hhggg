@@ -12,66 +12,90 @@ import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
 
+    // 画面状態
     enum class Screen { LOADING, MENU, GAME, SCORE }
     private var currentScreen = Screen.LOADING
+
     private lateinit var gameView: GameView
     private var score = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // GameView 作成してセット
         gameView = GameView(this)
         setContentView(gameView)
 
-        // 1秒後にメニュー画面へ
+        // ロード画面 1.5秒後にメニューに移行
         Handler(Looper.getMainLooper()).postDelayed({
             currentScreen = Screen.MENU
             gameView.invalidate()
-        }, 1000)
+        }, 1500)
     }
 
     inner class GameView(context: Context) : View(context) {
 
         private val paint = Paint()
-        private val playerRect = RectF()
-        private val fallingRect = RectF()
-        private var playerX = 0f
-        private var playerY = 0f
+
+        // プレイヤー・落下ブロック
+        private val rectSize = 100f
+        private var playerX = 400f
+        private var playerY = 1600f
         private var fallingX = 0f
         private var fallingY = 0f
-        private val rectSize = 100f
         private var speed = 15f
 
+        // ロードバー
+        private var loadingProgress = 0f
+
         init {
-            playerX = 400f
-            playerY = 1600f
-            resetFalling()
-            // タイマー的に更新
-            Handler(Looper.getMainLooper()).post(object : Runnable {
+            // View がまだ width を取得できない場合の安全策
+            post {
+                resetFalling()
+            }
+
+            // ゲーム更新タイマー
+            val handler = Handler(Looper.getMainLooper())
+            val runnable = object : Runnable {
                 override fun run() {
                     if (currentScreen == Screen.GAME) {
                         updateGame()
                         invalidate()
+                    } else if (currentScreen == Screen.LOADING) {
+                        // ロードバーアニメーション
+                        loadingProgress += 20f
+                        if (loadingProgress > width - 200f) loadingProgress = width - 200f
+                        invalidate()
                     }
-                    Handler(Looper.getMainLooper()).postDelayed(this, 30)
+                    handler.postDelayed(this, 30)
                 }
-            })
+            }
+            handler.post(runnable)
         }
 
         private fun resetFalling() {
+            // width がまだ 0 の場合は遅延して呼び出す
+            if (width == 0) {
+                post { resetFalling() }
+                return
+            }
             fallingX = Random.nextInt(0, width - rectSize.toInt()).toFloat()
             fallingY = -rectSize
+            speed = 15f
         }
 
         private fun updateGame() {
             fallingY += speed
+
             // 当たり判定
-            if (RectF(fallingX, fallingY, fallingX + rectSize, fallingY + rectSize)
-                    .intersect(RectF(playerX, playerY, playerX + rectSize, playerY + rectSize))
-            ) {
+            val playerRect = RectF(playerX, playerY, playerX + rectSize, playerY + rectSize)
+            val fallingRect = RectF(fallingX, fallingY, fallingX + rectSize, fallingY + rectSize)
+
+            if (RectF.intersects(playerRect, fallingRect)) {
                 score++
+                speed = 15f + score / 2f
                 resetFalling()
             } else if (fallingY > height) {
-                // ゲームオーバー
                 currentScreen = Screen.SCORE
             }
         }
@@ -80,37 +104,55 @@ class MainActivity : AppCompatActivity() {
             super.onDraw(canvas)
             canvas.drawColor(Color.BLACK)
 
-            when (currentScreen) {
-                Screen.LOADING -> {
-                    paint.color = Color.WHITE
-                    paint.textSize = 100f
-                    canvas.drawText("LOADING...", 200f, 1000f, paint)
-                }
-                Screen.MENU -> {
-                    paint.color = Color.GREEN
-                    paint.textSize = 120f
-                    canvas.drawText("TAP TO START", 200f, 1000f, paint)
-                }
-                Screen.GAME -> {
-                    paint.color = Color.RED
-                    canvas.drawRect(fallingX, fallingY, fallingX + rectSize, fallingY + rectSize, paint)
-
-                    paint.color = Color.BLUE
-                    canvas.drawRect(playerX, playerY, playerX + rectSize, playerY + rectSize, paint)
-
-                    paint.color = Color.WHITE
-                    paint.textSize = 80f
-                    canvas.drawText("Score: $score", 50f, 100f, paint)
-                }
-                Screen.SCORE -> {
-                    paint.color = Color.YELLOW
-                    paint.textSize = 100f
-                    canvas.drawText("GAME OVER", 200f, 800f, paint)
-                    canvas.drawText("Score: $score", 200f, 1000f, paint)
-                    paint.textSize = 60f
-                    canvas.drawText("Tap to return to menu", 150f, 1200f, paint)
-                }
+            when(currentScreen) {
+                Screen.LOADING -> drawLoading(canvas)
+                Screen.MENU -> drawMenu(canvas)
+                Screen.GAME -> drawGame(canvas)
+                Screen.SCORE -> drawScore(canvas)
             }
+        }
+
+        private fun drawLoading(canvas: Canvas) {
+            paint.color = Color.WHITE
+            paint.textSize = 100f
+            canvas.drawText("LOADING...", 200f, 800f, paint)
+
+            // 緑の進捗バー
+            paint.color = Color.GREEN
+            canvas.drawRect(100f, 900f, 100f + loadingProgress, 950f, paint)
+        }
+
+        private fun drawMenu(canvas: Canvas) {
+            paint.color = Color.CYAN
+            paint.textSize = 120f
+            canvas.drawText("TAP TO START", 150f, 1000f, paint)
+
+            paint.textSize = 60f
+            canvas.drawText("Score: $score", 150f, 1100f, paint)
+        }
+
+        private fun drawGame(canvas: Canvas) {
+            // 落下ブロック
+            paint.color = Color.RED
+            canvas.drawRect(fallingX, fallingY, fallingX + rectSize, fallingY + rectSize, paint)
+
+            // プレイヤー
+            paint.color = Color.BLUE
+            canvas.drawRect(playerX, playerY, playerX + rectSize, playerY + rectSize, paint)
+
+            // スコア表示
+            paint.color = Color.WHITE
+            paint.textSize = 80f
+            canvas.drawText("Score: $score", 50f, 100f, paint)
+        }
+
+        private fun drawScore(canvas: Canvas) {
+            paint.color = Color.YELLOW
+            paint.textSize = 100f
+            canvas.drawText("GAME OVER", 150f, 800f, paint)
+            canvas.drawText("Score: $score", 150f, 1000f, paint)
+            paint.textSize = 60f
+            canvas.drawText("Tap to return to menu", 100f, 1200f, paint)
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -122,7 +164,6 @@ class MainActivity : AppCompatActivity() {
                         resetFalling()
                     }
                     Screen.GAME -> {
-                        // 左右操作
                         playerX = if (event.x < width/2) (playerX - 100f).coerceAtLeast(0f)
                         else (playerX + 100f).coerceAtMost(width - rectSize)
                     }
