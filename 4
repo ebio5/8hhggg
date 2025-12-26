@@ -12,21 +12,16 @@ import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
 
-    // 画面状態
     enum class Screen { LOADING, MENU, GAME, SCORE }
     private var currentScreen = Screen.LOADING
-
     private lateinit var gameView: GameView
     private var score = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // GameView 作成してセット
         gameView = GameView(this)
         setContentView(gameView)
 
-        // ロード画面 1.5秒後にメニューに移行
         Handler(Looper.getMainLooper()).postDelayed({
             currentScreen = Screen.MENU
             gameView.invalidate()
@@ -34,39 +29,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     inner class GameView(context: Context) : View(context) {
-
         private val paint = Paint()
-
-        // プレイヤー・落下ブロック
         private val rectSize = 100f
         private var playerX = 400f
         private var playerY = 1600f
         private var fallingX = 0f
         private var fallingY = 0f
         private var speed = 15f
-
-        // ロードバー
         private var loadingProgress = 0f
 
         init {
-            // View がまだ width を取得できない場合の安全策
-            post {
-                resetFalling()
-            }
-
-            // ゲーム更新タイマー
+            post { resetFalling() }
             val handler = Handler(Looper.getMainLooper())
             val runnable = object : Runnable {
                 override fun run() {
-                    if (currentScreen == Screen.GAME) {
-                        updateGame()
-                        invalidate()
-                    } else if (currentScreen == Screen.LOADING) {
-                        // ロードバーアニメーション
+                    if (currentScreen == Screen.GAME) updateGame()
+                    else if (currentScreen == Screen.LOADING) {
                         loadingProgress += 20f
-                        if (loadingProgress > width - 200f) loadingProgress = width - 200f
-                        invalidate()
+                        if (width > 0 && loadingProgress > width - 200f) loadingProgress = width - 200f
                     }
+                    invalidate()
                     handler.postDelayed(this, 30)
                 }
             }
@@ -74,7 +56,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         private fun resetFalling() {
-            // width がまだ 0 の場合は遅延して呼び出す
             if (width == 0) {
                 post { resetFalling() }
                 return
@@ -86,11 +67,8 @@ class MainActivity : AppCompatActivity() {
 
         private fun updateGame() {
             fallingY += speed
-
-            // 当たり判定
             val playerRect = RectF(playerX, playerY, playerX + rectSize, playerY + rectSize)
             val fallingRect = RectF(fallingX, fallingY, fallingX + rectSize, fallingY + rectSize)
-
             if (RectF.intersects(playerRect, fallingRect)) {
                 score++
                 speed = 15f + score / 2f
@@ -103,7 +81,6 @@ class MainActivity : AppCompatActivity() {
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             canvas.drawColor(Color.BLACK)
-
             when(currentScreen) {
                 Screen.LOADING -> drawLoading(canvas)
                 Screen.MENU -> drawMenu(canvas)
@@ -116,8 +93,6 @@ class MainActivity : AppCompatActivity() {
             paint.color = Color.WHITE
             paint.textSize = 100f
             canvas.drawText("LOADING...", 200f, 800f, paint)
-
-            // 緑の進捗バー
             paint.color = Color.GREEN
             canvas.drawRect(100f, 900f, 100f + loadingProgress, 950f, paint)
         }
@@ -126,21 +101,15 @@ class MainActivity : AppCompatActivity() {
             paint.color = Color.CYAN
             paint.textSize = 120f
             canvas.drawText("TAP TO START", 150f, 1000f, paint)
-
             paint.textSize = 60f
             canvas.drawText("Score: $score", 150f, 1100f, paint)
         }
 
         private fun drawGame(canvas: Canvas) {
-            // 落下ブロック
             paint.color = Color.RED
             canvas.drawRect(fallingX, fallingY, fallingX + rectSize, fallingY + rectSize, paint)
-
-            // プレイヤー
             paint.color = Color.BLUE
             canvas.drawRect(playerX, playerY, playerX + rectSize, playerY + rectSize, paint)
-
-            // スコア表示
             paint.color = Color.WHITE
             paint.textSize = 80f
             canvas.drawText("Score: $score", 50f, 100f, paint)
@@ -158,18 +127,12 @@ class MainActivity : AppCompatActivity() {
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if(event.action == MotionEvent.ACTION_DOWN) {
                 when(currentScreen) {
-                    Screen.MENU -> {
-                        currentScreen = Screen.GAME
-                        score = 0
-                        resetFalling()
-                    }
+                    Screen.MENU -> { currentScreen = Screen.GAME; score = 0; resetFalling() }
                     Screen.GAME -> {
                         playerX = if (event.x < width/2) (playerX - 100f).coerceAtLeast(0f)
                         else (playerX + 100f).coerceAtMost(width - rectSize)
                     }
-                    Screen.SCORE -> {
-                        currentScreen = Screen.MENU
-                    }
+                    Screen.SCORE -> currentScreen = Screen.MENU
                     else -> {}
                 }
                 invalidate()
