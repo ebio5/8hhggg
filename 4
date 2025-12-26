@@ -19,9 +19,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         gameView = GameView(this)
         setContentView(gameView)
 
+        // ロード画面 1.5秒後にメニューに移行
         Handler(Looper.getMainLooper()).postDelayed({
             currentScreen = Screen.MENU
             gameView.invalidate()
@@ -40,6 +42,7 @@ class MainActivity : AppCompatActivity() {
 
         init {
             post { resetFalling() }
+
             val handler = Handler(Looper.getMainLooper())
             val runnable = object : Runnable {
                 override fun run() {
